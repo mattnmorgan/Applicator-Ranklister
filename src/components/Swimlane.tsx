@@ -240,7 +240,6 @@ export default function Swimlane({
                   borderRadius: 6,
                   border: isSelected ? "2px solid #3b82f6" : "2px solid transparent",
                   background: "#0f172a",
-                  overflow: "hidden",
                   cursor: "grab",
                   opacity: isDragging ? 0.4 : 1,
                   transition: "border-color 0.1s, opacity 0.1s",
@@ -249,12 +248,14 @@ export default function Swimlane({
                 }}
               >
                 {item.hasImage && (
-                  <img
-                    src={`/api/ranklister/images/${ranklistId}/${item.id}?v=${imageVersion}`}
-                    alt={item.name}
-                    style={{ width: "100%", height: 96, objectFit: "contain", display: "block", background: "#0f172a" }}
-                    draggable={false}
-                  />
+                  <div style={{ overflow: "hidden", borderRadius: "4px 4px 0 0" }}>
+                    <img
+                      src={`/api/ranklister/images/${ranklistId}/${item.id}?v=${imageVersion}`}
+                      alt={item.name}
+                      style={{ width: "100%", height: 96, objectFit: "contain", display: "block", background: "#0f172a" }}
+                      draggable={false}
+                    />
+                  </div>
                 )}
                 <div
                   style={{
@@ -276,8 +277,10 @@ export default function Swimlane({
                     onClick={(e) => e.stopPropagation()}
                     style={{
                       position: "absolute",
-                      top: "100%",
-                      left: 0,
+                      bottom: "100%",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      marginBottom: 4,
                       zIndex: 20,
                       background: "#1e293b",
                       border: "1px solid #334155",

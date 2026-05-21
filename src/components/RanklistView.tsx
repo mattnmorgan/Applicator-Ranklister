@@ -279,6 +279,13 @@ export default function RanklistView({
       const itemId = draggedItemIdRef.current;
       if (!itemId) return;
 
+      // Clear drag state before the optimistic update so the item renders at
+      // full opacity in its new lane. Without this, the source element gets
+      // unmounted by the optimistic update before dragend fires, which prevents
+      // the onDragEnd handler from running and leaves draggedItemId stale.
+      setDraggedItemId(null);
+      draggedItemIdRef.current = null;
+
       const draggedItem = items.find((i) => i.id === itemId);
       if (!draggedItem) return;
 

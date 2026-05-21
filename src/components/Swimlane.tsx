@@ -11,6 +11,8 @@ interface Props {
   items: Item[];
   ranklistId: string;
   isLibrary: boolean;
+  selectedItemId: string | null;
+  onSelectItem: (id: string | null) => void;
   draggedItemId: string | null;
   onDragStart: (itemId: string) => void;
   onDrop: (targetLaneId: string | null, insertIndex: number) => void;
@@ -34,6 +36,8 @@ export default function Swimlane({
   items,
   ranklistId,
   isLibrary,
+  selectedItemId,
+  onSelectItem,
   draggedItemId,
   onDragStart,
   onDrop,
@@ -48,7 +52,6 @@ export default function Swimlane({
   isDraggingRank,
   imageVersion,
 }: Props) {
-  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [dropIndex, setDropIndex] = useState<number | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const itemsRef = useRef<HTMLDivElement>(null);
@@ -68,16 +71,22 @@ export default function Swimlane({
 
       for (let i = 0; i < children.length; i++) {
         const rect = children[i].getBoundingClientRect();
-        const midX = rect.left + rect.width / 2;
-        const midY = rect.top + rect.height / 2;
 
-        if (clientY < rect.top + rect.height) {
-          if (clientY < midY || (clientY <= rect.bottom && clientX < midX)) {
-            return i;
-          }
+        // Cursor is above this row entirely → insert before this item
+        if (clientY < rect.top) return i;
+
+        // Cursor is within this row
+        if (clientY <= rect.bottom) {
+          // Left of horizontal center → insert before
+          if (clientX < rect.left + rect.width / 2) return i;
+          // Right of center — if this is the last item in its row, insert after it
+          const next = children[i + 1];
+          if (!next || next.getBoundingClientRect().top > rect.top) return i + 1;
+          // Otherwise continue to the next item in the same row
         }
+        // Cursor is below this row, continue
       }
-      return items.length;
+      return children.length;
     },
     [items.length]
   );
@@ -116,14 +125,14 @@ export default function Swimlane({
   const handleItemClick = useCallback(
     (e: React.MouseEvent, itemId: string) => {
       e.stopPropagation();
-      setSelectedItemId((prev) => (prev === itemId ? null : itemId));
+      onSelectItem(selectedItemId === itemId ? null : itemId);
     },
-    []
+    [selectedItemId, onSelectItem]
   );
 
   const handleLaneClick = useCallback(() => {
-    setSelectedItemId(null);
-  }, []);
+    onSelectItem(null);
+  }, [onSelectItem]);
 
   const handleLabelDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -230,7 +239,7 @@ export default function Swimlane({
                 onDragStart={(e) => {
                   e.dataTransfer.effectAllowed = "move";
                   onDragStart(item.id);
-                  setSelectedItemId(null);
+                  onSelectItem(null);
                 }}
                 onDragEnd={onDragEnd}
                 onClick={(e) => handleItemClick(e, item.id)}
@@ -277,18 +286,17 @@ export default function Swimlane({
                     onClick={(e) => e.stopPropagation()}
                     style={{
                       position: "absolute",
-                      bottom: "100%",
+                      top: 4,
                       left: "50%",
                       transform: "translateX(-50%)",
-                      marginBottom: 4,
                       zIndex: 20,
-                      background: "#1e293b",
+                      background: "rgba(15,23,42,0.88)",
                       border: "1px solid #334155",
                       borderRadius: 6,
-                      padding: "4px 6px",
+                      padding: "2px 4px",
                       display: "flex",
-                      gap: 4,
-                      boxShadow: "0 4px 12px rgba(0,0,0,0.4)",
+                      gap: 2,
+                      boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
                       whiteSpace: "nowrap",
                     }}
                   >
@@ -296,14 +304,14 @@ export default function Swimlane({
                       name="edit"
                       label="Edit item"
                       size="sm"
-                      onClick={() => { setSelectedItemId(null); onEditItem(item); }}
+                      onClick={() => { onSelectItem(null); onEditItem(item); }}
                     />
                     <ButtonIcon
                       name="trash"
                       label="Delete item"
                       size="sm"
                       subvariant="danger"
-                      onClick={() => { setSelectedItemId(null); onDeleteItem(item); }}
+                      onClick={() => { onSelectItem(null); onDeleteItem(item); }}
                     />
                   </div>
                 )}

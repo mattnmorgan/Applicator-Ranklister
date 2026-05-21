@@ -42,6 +42,9 @@ export default function RanklistView({
   const [addToLaneId, setAddToLaneId] = useState<string | null>(null);
   const [deleteRanklistOpen, setDeleteRanklistOpen] = useState(false);
 
+  // Item selection (shared across all lanes so only one item can be selected at a time)
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+
   // Item drag state
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const draggedItemIdRef = useRef<string | null>(null);
@@ -293,7 +296,21 @@ export default function RanklistView({
         .filter((i) => i.rankId === targetLaneId && i.id !== itemId)
         .sort((a, b) => a.order - b.order);
 
-      const clamped = Math.max(0, Math.min(insertIndex, targetLaneItems.length));
+      // computeDropIndex counts DOM children including the dragged item when it
+      // is in the same lane. targetLaneItems excludes it. Subtract 1 when the
+      // dragged item sits before the drop position in that lane's sorted order.
+      let adjustedIndex = insertIndex;
+      if (draggedItem.rankId === targetLaneId) {
+        const laneSorted = items
+          .filter((i) => i.rankId === targetLaneId)
+          .sort((a, b) => a.order - b.order);
+        const draggedDomIdx = laneSorted.findIndex((i) => i.id === itemId);
+        if (draggedDomIdx !== -1 && draggedDomIdx < insertIndex) {
+          adjustedIndex = insertIndex - 1;
+        }
+      }
+
+      const clamped = Math.max(0, Math.min(adjustedIndex, targetLaneItems.length));
       const newOrder = computeNewOrder(targetLaneItems, clamped);
 
       setItems((prev) =>
@@ -617,6 +634,8 @@ export default function RanklistView({
                 items={rankItemsMap.get(rank.id) ?? []}
                 ranklistId={ranklist.id}
                 isLibrary={false}
+                selectedItemId={selectedItemId}
+                onSelectItem={setSelectedItemId}
                 draggedItemId={draggedItemId}
                 onDragStart={handleDragStart}
                 onDrop={handleDrop}
@@ -647,6 +666,8 @@ export default function RanklistView({
           items={libraryItems}
           ranklistId={ranklist.id}
           isLibrary={true}
+          selectedItemId={selectedItemId}
+          onSelectItem={setSelectedItemId}
           draggedItemId={draggedItemId}
           onDragStart={handleDragStart}
           onDrop={handleDrop}

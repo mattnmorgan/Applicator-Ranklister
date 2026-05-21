@@ -20,8 +20,13 @@ interface Props {
   onAddItem: () => void;
   onEditRank?: () => void;
   onDeleteRank?: () => void;
+  onRankDragStart?: () => void;
+  onRankDragEnd?: () => void;
+  isDraggingRank?: boolean;
   imageVersion: number;
 }
+
+const LABEL_WIDTH = 120;
 
 export default function Swimlane({
   laneId,
@@ -38,6 +43,9 @@ export default function Swimlane({
   onAddItem,
   onEditRank,
   onDeleteRank,
+  onRankDragStart,
+  onRankDragEnd,
+  isDraggingRank,
   imageVersion,
 }: Props) {
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -63,10 +71,7 @@ export default function Swimlane({
         const midX = rect.left + rect.width / 2;
         const midY = rect.top + rect.height / 2;
 
-        // Check if cursor is in the left/top half of this item
-        // Use a row-based check: compare Y first, then X within the same row
         if (clientY < rect.top + rect.height) {
-          // We're in this row or above
           if (clientY < midY || (clientY <= rect.bottom && clientX < midX)) {
             return i;
           }
@@ -79,13 +84,14 @@ export default function Swimlane({
 
   const handleDragOver = useCallback(
     (e: React.DragEvent) => {
+      if (isDraggingRank) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       setIsDragOver(true);
       const idx = computeDropIndex(e.clientX, e.clientY);
       setDropIndex(idx);
     },
-    [computeDropIndex]
+    [computeDropIndex, isDraggingRank]
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -97,13 +103,14 @@ export default function Swimlane({
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
+      if (isDraggingRank) return;
       e.preventDefault();
       setIsDragOver(false);
       const idx = computeDropIndex(e.clientX, e.clientY);
       setDropIndex(null);
       onDrop(laneId, idx);
     },
-    [laneId, onDrop, computeDropIndex]
+    [laneId, onDrop, computeDropIndex, isDraggingRank]
   );
 
   const handleItemClick = useCallback(
@@ -114,29 +121,58 @@ export default function Swimlane({
     []
   );
 
-  // Clicking outside deselects
   const handleLaneClick = useCallback(() => {
     setSelectedItemId(null);
   }, []);
 
-  const labelNode = (
+  const handleLabelDragStart = useCallback(
+    (e: React.DragEvent) => {
+      e.stopPropagation();
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("rank-drag", "true");
+      onRankDragStart?.();
+    },
+    [onRankDragStart]
+  );
+
+  const labelInner = (
     <div
+      draggable={!isLibrary}
+      onDragStart={handleLabelDragStart}
+      onDragEnd={onRankDragEnd}
       style={{
         background: bgColor,
         color: fgColor,
-        padding: "0 16px",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontWeight: 700,
-        fontSize: 15,
-        minWidth: 72,
+        width: LABEL_WIDTH,
+        minWidth: LABEL_WIDTH,
         flexShrink: 0,
         alignSelf: "stretch",
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        padding: "8px 10px",
+        cursor: isLibrary ? "default" : "grab",
         userSelect: "none",
       }}
     >
-      {labelText}
+      {!isLibrary && (
+        <span style={{ opacity: 0.45, flexShrink: 0 }}>
+          <Icon name="drag" size={12} />
+        </span>
+      )}
+      <span
+        style={{
+          fontWeight: 700,
+          fontSize: 14,
+          lineHeight: 1.3,
+          wordBreak: "break-word",
+          overflowWrap: "break-word",
+          flex: 1,
+          textAlign: "center",
+        }}
+      >
+        {labelText}
+      </span>
     </div>
   );
 
@@ -157,12 +193,10 @@ export default function Swimlane({
       {/* Rank label */}
       {helpText ? (
         <Tooltip text={helpText} placement="right">
-          <div style={{ display: "flex" }}>
-            {labelNode}
-          </div>
+          {labelInner}
         </Tooltip>
       ) : (
-        labelNode
+        labelInner
       )}
 
       {/* Items area */}
@@ -218,7 +252,7 @@ export default function Swimlane({
                   <img
                     src={`/api/ranklister/images/${ranklistId}/${item.id}?v=${imageVersion}`}
                     alt={item.name}
-                    style={{ width: "100%", height: 96, objectFit: "cover", display: "block" }}
+                    style={{ width: "100%", height: 96, objectFit: "contain", display: "block", background: "#0f172a" }}
                     draggable={false}
                   />
                 )}

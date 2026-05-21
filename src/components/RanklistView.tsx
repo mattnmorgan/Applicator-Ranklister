@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { ButtonIcon, Button, Spinner, ConfirmModal } from "@applicator/sdk/components";
+import { ButtonIcon, Spinner, ConfirmModal } from "@applicator/sdk/components";
 import type { ToastItem } from "@applicator/sdk/components";
 import { Ranklist } from "../types/Ranklist";
 import { Rank } from "../types/Rank";
@@ -42,9 +42,15 @@ export default function RanklistView({
   const [addToLaneId, setAddToLaneId] = useState<string | null>(null);
   const [deleteRanklistOpen, setDeleteRanklistOpen] = useState(false);
 
-  // Drag state
+  // Item drag state
   const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const draggedItemIdRef = useRef<string | null>(null);
+
+  // Rank drag state
+  const [draggingRankId, setDraggingRankId] = useState<string | null>(null);
+  const draggingRankIdRef = useRef<string | null>(null);
+  const [rankDropIndex, setRankDropIndex] = useState<number | null>(null);
+  const ranksContainerRef = useRef<HTMLDivElement>(null);
 
   const baseUrl = `/api/ranklister/ranklists/${ranklist.id}`;
 
@@ -155,7 +161,6 @@ export default function RanklistView({
       const res = await fetch(`${baseUrl}/ranks/${deletingRank.id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
       setRanks((prev) => prev.filter((r) => r.id !== deletingRank.id));
-      // Reload items since some moved to Library
       const itemsRes = await fetch(`${baseUrl}/items`);
       const itemsData = await itemsRes.json();
       setItems(itemsData.items ?? []);
@@ -178,12 +183,8 @@ export default function RanklistView({
         const res = await fetch(`${baseUrl}/items`, { method: "POST", body: formData });
         if (!res.ok) throw new Error();
         const item: Item = await res.json();
-        // Place in the selected lane
         if (addToLaneId !== null) {
-          // Move to the target lane
-          const laneItems = items.filter(
-            (i) => i.rankId === addToLaneId
-          );
+          const laneItems = items.filter((i) => i.rankId === addToLaneId);
           const maxOrder = laneItems.reduce((m, i) => Math.max(m, i.order), 0);
           const patchRes = await fetch(`${baseUrl}/items/${item.id}`, {
             method: "PATCH",
@@ -213,7 +214,6 @@ export default function RanklistView({
     async (name: string, file: Blob | null) => {
       if (!editingItem) return;
       try {
-        // Update name
         const patchRes = await fetch(`${baseUrl}/items/${editingItem.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -222,7 +222,6 @@ export default function RanklistView({
         if (!patchRes.ok) throw new Error();
         const patched: Item = await patchRes.json();
 
-        // Replace image if a new file was provided
         if (file) {
           const formData = new FormData();
           formData.append("image", file, "image.jpg");
@@ -263,7 +262,7 @@ export default function RanklistView({
     }
   }, [baseUrl, deletingItem, addToast]);
 
-  // --- Drag and drop ---
+  // --- Item drag and drop ---
 
   const handleDragStart = useCallback((itemId: string) => {
     setDraggedItemId(itemId);
@@ -283,16 +282,13 @@ export default function RanklistView({
       const draggedItem = items.find((i) => i.id === itemId);
       if (!draggedItem) return;
 
-      // Build the ordered list of items in the target lane (excluding the dragged item)
       const targetLaneItems = items
         .filter((i) => i.rankId === targetLaneId && i.id !== itemId)
         .sort((a, b) => a.order - b.order);
 
-      // Insert at the computed index
       const clamped = Math.max(0, Math.min(insertIndex, targetLaneItems.length));
       const newOrder = computeNewOrder(targetLaneItems, clamped);
 
-      // Optimistic update
       setItems((prev) =>
         prev.map((i) =>
           i.id === itemId ? { ...i, rankId: targetLaneId, order: newOrder } : i
@@ -309,7 +305,6 @@ export default function RanklistView({
         const updated: Item = await res.json();
         setItems((prev) => prev.map((i) => (i.id === itemId ? updated : i)));
       } catch {
-        // Revert optimistic update
         setItems((prev) =>
           prev.map((i) =>
             i.id === itemId
@@ -323,11 +318,204 @@ export default function RanklistView({
     [items, baseUrl, addToast]
   );
 
+  // --- Rank drag and drop ---
+
+  const handleRankDragStart = useCallback((rankId: string) => {
+    setDraggingRankId(rankId);
+    draggingRankIdRef.current = rankId;
+  }, []);
+
+  const handleRankDragEnd = useCallback(() => {
+    setDraggingRankId(null);
+    draggingRankIdRef.current = null;
+    setRankDropIndex(null);
+  }, []);
+
+  const computeRankDropIndex = useCallback(
+    (clientY: number): number => {
+      if (!ranksContainerRef.current) return ranks.length;
+      const rows = Array.from(
+        ranksContainerRef.current.querySelectorAll("[data-rank-row]")
+      ) as HTMLElement[];
+      for (let i = 0; i < rows.length; i++) {
+        const rect = rows[i].getBoundingClientRect();
+        if (clientY < rect.top + rect.height / 2) return i;
+      }
+      return rows.length;
+    },
+    [ranks.length]
+  );
+
+  const handleRankContainerDragOver = useCallback(
+    (e: React.DragEvent) => {
+      if (!draggingRankIdRef.current) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      setRankDropIndex(computeRankDropIndex(e.clientY));
+    },
+    [computeRankDropIndex]
+  );
+
+  const handleRankContainerDragLeave = useCallback((e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+      setRankDropIndex(null);
+    }
+  }, []);
+
+  const handleRankContainerDrop = useCallback(
+    async (e: React.DragEvent) => {
+      e.preventDefault();
+      const rankId = draggingRankIdRef.current;
+      if (!rankId) return;
+
+      const idx = computeRankDropIndex(e.clientY);
+      setDraggingRankId(null);
+      draggingRankIdRef.current = null;
+      setRankDropIndex(null);
+
+      const draggedRank = ranks.find((r) => r.id === rankId);
+      if (!draggedRank) return;
+
+      const draggingIdx = ranks.findIndex((r) => r.id === rankId);
+      // Adjust index to account for the dragged rank being removed from otherRanks
+      const adjustedIdx = idx > draggingIdx ? idx - 1 : idx;
+      // No-op if dropped in same position
+      if (adjustedIdx === draggingIdx) return;
+
+      const otherRanks = ranks.filter((r) => r.id !== rankId);
+      const clamped = Math.max(0, Math.min(adjustedIdx, otherRanks.length));
+      const newOrder = computeNewOrder(otherRanks, clamped);
+
+      // Optimistic update
+      setRanks((prev) =>
+        prev
+          .map((r) => (r.id === rankId ? { ...r, order: newOrder } : r))
+          .sort((a, b) => a.order - b.order)
+      );
+
+      try {
+        const res = await fetch(`${baseUrl}/ranks/${rankId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ order: newOrder }),
+        });
+        if (!res.ok) throw new Error();
+        const updated: Rank = await res.json();
+        setRanks((prev) =>
+          prev.map((r) => (r.id === rankId ? updated : r)).sort((a, b) => a.order - b.order)
+        );
+      } catch {
+        setRanks((prev) =>
+          prev
+            .map((r) => (r.id === rankId ? draggedRank : r))
+            .sort((a, b) => a.order - b.order)
+        );
+        addToast({ message: "Failed to reorder ranks", type: "error" });
+      }
+    },
+    [ranks, baseUrl, computeRankDropIndex, addToast]
+  );
+
   // --- Print ---
 
   const handlePrint = useCallback(() => {
-    window.print();
-  }, []);
+    const pw = window.open("", "_blank", "width=960,height=700");
+    if (!pw) return;
+
+    const origin = window.location.origin;
+    const rankLabelWidth = 120;
+
+    const rankRowsHtml = ranks
+      .map((rank) => {
+        const rankItems = items
+          .filter((i) => i.rankId === rank.id)
+          .sort((a, b) => a.order - b.order);
+        const itemsHtml = rankItems
+          .map(
+            (item) => `
+          <div style="display:inline-block;width:80px;margin:4px;vertical-align:top;text-align:center;">
+            ${item.hasImage ? `<img src="${origin}/api/ranklister/images/${ranklist.id}/${item.id}" style="width:80px;height:80px;object-fit:contain;border-radius:4px;display:block;" />` : ""}
+            <div style="font-size:10px;color:#1e293b;margin-top:2px;word-break:break-word;">${esc(item.name)}</div>
+          </div>`
+          )
+          .join("");
+        return `
+        <div style="display:flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;margin-bottom:6px;min-height:56px;">
+          <div style="width:${rankLabelWidth}px;min-width:${rankLabelWidth}px;background:${rank.bgColor};color:${rank.fgColor};display:flex;align-items:center;justify-content:center;padding:8px;font-weight:700;font-size:13px;text-align:center;word-break:break-word;align-self:stretch;">
+            ${esc(rank.name)}
+          </div>
+          <div style="flex:1;padding:4px;display:flex;flex-wrap:wrap;align-content:flex-start;">${itemsHtml}</div>
+        </div>`;
+      })
+      .join("");
+
+    const libraryItems = items.filter((i) => !i.rankId).sort((a, b) => a.order - b.order);
+    const libraryHtml =
+      libraryItems.length > 0
+        ? `
+      <div style="display:flex;border:1px solid #cbd5e1;border-radius:6px;overflow:hidden;margin-bottom:6px;min-height:56px;">
+        <div style="width:${rankLabelWidth}px;min-width:${rankLabelWidth}px;background:#e2e8f0;color:#475569;display:flex;align-items:center;justify-content:center;padding:8px;font-weight:700;font-size:13px;text-align:center;align-self:stretch;">
+          Library
+        </div>
+        <div style="flex:1;padding:4px;display:flex;flex-wrap:wrap;align-content:flex-start;">
+          ${libraryItems
+            .map(
+              (item) => `
+            <div style="display:inline-block;width:80px;margin:4px;vertical-align:top;text-align:center;">
+              ${item.hasImage ? `<img src="${origin}/api/ranklister/images/${ranklist.id}/${item.id}" style="width:80px;height:80px;object-fit:contain;border-radius:4px;display:block;" />` : ""}
+              <div style="font-size:10px;color:#1e293b;margin-top:2px;word-break:break-word;">${esc(item.name)}</div>
+            </div>`
+            )
+            .join("")}
+        </div>
+      </div>`
+        : "";
+
+    const glossaryItems = ranks.filter((r) => r.helpText);
+    const glossaryHtml =
+      glossaryItems.length > 0
+        ? `
+      <div style="margin-top:24px;border-top:1px solid #cbd5e1;padding-top:16px;">
+        <h2 style="font-size:14px;font-weight:700;margin:0 0 12px;color:#0f172a;">Rank Key</h2>
+        ${glossaryItems
+          .map(
+            (r) => `
+          <div style="display:flex;align-items:flex-start;gap:12px;margin-bottom:8px;">
+            <div style="background:${r.bgColor};color:${r.fgColor};padding:3px 10px;border-radius:4px;font-weight:700;font-size:12px;flex-shrink:0;min-width:${rankLabelWidth}px;text-align:center;word-break:break-word;">
+              ${esc(r.name)}
+            </div>
+            <span style="font-size:12px;color:#334155;padding-top:2px;">${esc(r.helpText ?? "")}</span>
+          </div>`
+          )
+          .join("")}
+      </div>`
+        : "";
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>${esc(ranklist.name)}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:20px;color:#0f172a;background:#fff;}
+    img{display:block;}
+    @media print{@page{margin:1cm;}}
+  </style>
+</head>
+<body>
+  <h1 style="font-size:18px;font-weight:600;margin-bottom:2px;">${esc(ranklist.name)}</h1>
+  ${ranklist.description ? `<p style="font-size:12px;color:#475569;margin-bottom:14px;">${esc(ranklist.description)}</p>` : `<div style="margin-bottom:14px;"></div>`}
+  ${rankRowsHtml}
+  ${libraryHtml}
+  ${glossaryHtml}
+  <script>window.addEventListener('load',function(){window.print();});</script>
+</body>
+</html>`;
+
+    pw.document.write(html);
+    pw.document.close();
+  }, [ranks, items, ranklist]);
 
   // Build lane item lists
   const libraryItems = items
@@ -352,7 +540,6 @@ export default function RanklistView({
 
   return (
     <div
-      className="ranklist-view"
       style={{
         padding: "20px 24px",
         maxWidth: 1100,
@@ -360,94 +547,91 @@ export default function RanklistView({
         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
-      {/* Print styles injected inline */}
-      <style>{printStyles}</style>
-
       {/* Header */}
-      <div style={{ marginBottom: 20 }}>
-        <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 4 }}>
-          <button
-            onClick={onBack}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#94a3b8",
-              cursor: "pointer",
-              padding: "2px 0",
-              fontSize: 13,
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-            }}
-            className="no-print"
-          >
-            ← Back
-          </button>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 20 }}>
+        <div style={{ paddingTop: 2, flexShrink: 0 }}>
+          <ButtonIcon name="chevron-left" label="Back" placement="right" onClick={onBack} />
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <h1
-            style={{
-              margin: 0,
-              fontSize: 22,
-              fontWeight: 700,
-              color: "#f1f5f9",
-              flex: 1,
-              lineHeight: 1.3,
-            }}
-          >
-            {ranklist.name}
-          </h1>
-          <div className="no-print" style={{ display: "flex", gap: 4 }}>
-            <ButtonIcon
-              name="edit"
-              label="Edit ranklist"
-              size="sm"
-              onClick={() => setEditRanklistOpen(true)}
-            />
-            <ButtonIcon
-              name="print"
-              label="Print ranklist"
-              size="sm"
-              onClick={handlePrint}
-            />
-            <ButtonIcon
-              name="trash"
-              label="Delete ranklist"
-              size="sm"
-              subvariant="danger"
-              onClick={() => setDeleteRanklistOpen(true)}
-            />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <h1
+              style={{
+                margin: 0,
+                fontSize: 18,
+                fontWeight: 500,
+                color: "#f1f5f9",
+                flex: 1,
+                lineHeight: 1.3,
+              }}
+            >
+              {ranklist.name}
+            </h1>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
+              <ButtonIcon name="plus" label="Add rank" size="sm" onClick={() => setNewRankOpen(true)} />
+              <ButtonIcon name="edit" label="Edit ranklist" size="sm" onClick={() => setEditRanklistOpen(true)} />
+              <ButtonIcon name="print" label="Print ranklist" size="sm" onClick={handlePrint} />
+              <ButtonIcon
+                name="trash"
+                label="Delete ranklist"
+                size="sm"
+                subvariant="danger"
+                onClick={() => setDeleteRanklistOpen(true)}
+              />
+            </div>
           </div>
+          {ranklist.description && (
+            <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: 13 }}>
+              {ranklist.description}
+            </p>
+          )}
         </div>
-        {ranklist.description && (
-          <p style={{ margin: "6px 0 0", color: "#94a3b8", fontSize: 14 }}>
-            {ranklist.description}
-          </p>
-        )}
       </div>
 
       {/* Swimlanes */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {ranks.map((rank) => (
-          <Swimlane
-            key={rank.id}
-            laneId={rank.id}
-            rank={rank}
-            items={rankItemsMap.get(rank.id) ?? []}
-            ranklistId={ranklist.id}
-            isLibrary={false}
-            draggedItemId={draggedItemId}
-            onDragStart={handleDragStart}
-            onDrop={handleDrop}
-            onDragEnd={handleDragEnd}
-            onEditItem={(item) => { setEditingItem(item); }}
-            onDeleteItem={(item) => setDeletingItem(item)}
-            onAddItem={() => { setAddToLaneId(rank.id); setItemModalOpen(true); }}
-            onEditRank={() => setEditingRank(rank)}
-            onDeleteRank={() => setDeletingRank(rank)}
-            imageVersion={imageVersion}
-          />
+      <div
+        ref={ranksContainerRef}
+        onDragOver={handleRankContainerDragOver}
+        onDragLeave={handleRankContainerDragLeave}
+        onDrop={handleRankContainerDrop}
+        style={{ display: "flex", flexDirection: "column", gap: 6 }}
+      >
+        {ranks.map((rank, idx) => (
+          <React.Fragment key={rank.id}>
+            {rankDropIndex === idx && draggingRankId && draggingRankId !== rank.id && (
+              <RankDropIndicator />
+            )}
+            <div
+              data-rank-row
+              style={{ opacity: draggingRankId === rank.id ? 0.4 : 1, transition: "opacity 0.1s" }}
+            >
+              <Swimlane
+                laneId={rank.id}
+                rank={rank}
+                items={rankItemsMap.get(rank.id) ?? []}
+                ranklistId={ranklist.id}
+                isLibrary={false}
+                draggedItemId={draggedItemId}
+                onDragStart={handleDragStart}
+                onDrop={handleDrop}
+                onDragEnd={handleDragEnd}
+                onEditItem={(item) => { setEditingItem(item); }}
+                onDeleteItem={(item) => setDeletingItem(item)}
+                onAddItem={() => { setAddToLaneId(rank.id); setItemModalOpen(true); }}
+                onEditRank={() => setEditingRank(rank)}
+                onDeleteRank={() => setDeletingRank(rank)}
+                onRankDragStart={() => handleRankDragStart(rank.id)}
+                onRankDragEnd={handleRankDragEnd}
+                isDraggingRank={!!draggingRankId}
+                imageVersion={imageVersion}
+              />
+            </div>
+          </React.Fragment>
         ))}
+
+        {/* Drop indicator after last rank row */}
+        {rankDropIndex === ranks.length && draggingRankId && (
+          <RankDropIndicator />
+        )}
 
         {/* Library lane — always last */}
         <Swimlane
@@ -463,48 +647,9 @@ export default function RanklistView({
           onEditItem={(item) => { setEditingItem(item); }}
           onDeleteItem={(item) => setDeletingItem(item)}
           onAddItem={() => { setAddToLaneId(null); setItemModalOpen(true); }}
+          isDraggingRank={!!draggingRankId}
           imageVersion={imageVersion}
         />
-      </div>
-
-      {/* Add Rank button */}
-      <div className="no-print" style={{ marginTop: 16 }}>
-        <Button variant="ghost" onClick={() => setNewRankOpen(true)}>
-          + Add Rank
-        </Button>
-      </div>
-
-      {/* Print glossary — only visible when printing */}
-      <div className="print-only glossary">
-        <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 12, color: "#0f172a" }}>
-          Rank Key
-        </h2>
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {ranks.map((rank) => (
-            <div key={rank.id} style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-              <div
-                style={{
-                  background: rank.bgColor,
-                  color: rank.fgColor,
-                  padding: "4px 12px",
-                  fontWeight: 700,
-                  fontSize: 14,
-                  borderRadius: 4,
-                  flexShrink: 0,
-                  minWidth: 60,
-                  textAlign: "center",
-                }}
-              >
-                {rank.name}
-              </div>
-              {rank.helpText && (
-                <span style={{ fontSize: 13, color: "#334155", paddingTop: 4 }}>
-                  {rank.helpText}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Modals */}
@@ -580,35 +725,31 @@ export default function RanklistView({
   );
 }
 
-function computeNewOrder(sortedNeighbors: Item[], insertAt: number): number {
+function computeNewOrder(sortedNeighbors: { order: number }[], insertAt: number): number {
   if (sortedNeighbors.length === 0) return 1000;
-  if (insertAt === 0) {
-    return sortedNeighbors[0].order - 1000;
-  }
-  if (insertAt >= sortedNeighbors.length) {
-    return sortedNeighbors[sortedNeighbors.length - 1].order + 1000;
-  }
-  const before = sortedNeighbors[insertAt - 1].order;
-  const after = sortedNeighbors[insertAt].order;
-  return (before + after) / 2;
+  if (insertAt === 0) return sortedNeighbors[0].order - 1000;
+  if (insertAt >= sortedNeighbors.length) return sortedNeighbors[sortedNeighbors.length - 1].order + 1000;
+  return (sortedNeighbors[insertAt - 1].order + sortedNeighbors[insertAt].order) / 2;
 }
 
-const printStyles = `
-@media print {
-  .no-print { display: none !important; }
-  .print-only { display: block !important; }
-  .ranklist-view {
-    max-width: 100%;
-    padding: 0;
-    color: #0f172a;
-  }
+function esc(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
-@media screen {
-  .print-only { display: none; }
+
+function RankDropIndicator() {
+  return (
+    <div
+      style={{
+        height: 3,
+        borderRadius: 2,
+        background: "#3b82f6",
+        flexShrink: 0,
+      }}
+    />
+  );
 }
-.glossary {
-  margin-top: 32px;
-  padding-top: 20px;
-  border-top: 1px solid #334155;
-}
-`;

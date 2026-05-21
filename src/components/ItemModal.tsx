@@ -33,8 +33,7 @@ export default function ItemModal({ ranklistId, existing, onClose, onSave }: Pro
     const reader = new FileReader();
     reader.onload = (e) => setPreview(e.target?.result as string);
     reader.readAsDataURL(f);
-    // Resize client-side to 96×96 JPEG
-    img.resizeImage(f, 96, 96).then(setFile).catch(() => setFile(f));
+    img.resizeImage(f, 300, 300, { fit: "scale-down" }).then(setFile).catch(() => setFile(f));
   };
 
   const handleSubmit = async () => {
@@ -114,7 +113,7 @@ export default function ItemModal({ ranklistId, existing, onClose, onSave }: Pro
               <img
                 src={preview}
                 alt="preview"
-                style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 6 }}
+                style={{ maxWidth: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 6, display: "block" }}
               />
             ) : (
               <>

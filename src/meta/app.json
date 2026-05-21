@@ -1,35 +1,205 @@
 {
-  "id": "my-app",
-  "name": "My App",
+  "id": "ranklister",
+  "name": "Ranklister",
   "version": {
     "major": 1,
     "minor": 0,
-    "dev": 1
+    "dev": 3
   },
-  "author": "Your Name",
-  "contactEmail": "you@example.com",
-  "description": "Description of what your app does",
-  "requiredPermissions": [],
+  "author": "Wafflecorp",
+  "contactEmail": "daemicwolfie@gmail.com",
+  "description": "Create and manage tier-ranking lists with drag-and-drop swimlanes",
   "dependencies": {},
-  "tables": [],
+  "tables": [
+    {
+      "name": "ranklist",
+      "description": "A ranklist owned by a user",
+      "fields": [
+        {
+          "name": "name",
+          "description": "Ranklist title",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "description",
+          "description": "Optional description of the ranklist",
+          "type": "string"
+        },
+        {
+          "name": "ownerId",
+          "description": "User who owns this ranklist",
+          "type": "relationship",
+          "relatedTo": "system:user",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "rank",
+      "description": "A named rank (swimlane) within a ranklist",
+      "fields": [
+        {
+          "name": "ranklistId",
+          "description": "Parent ranklist",
+          "type": "relationship",
+          "relatedTo": "ranklist",
+          "required": true
+        },
+        {
+          "name": "name",
+          "description": "Rank label (e.g. S, A, B)",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "bgColor",
+          "description": "Lane background color (hex)",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "fgColor",
+          "description": "Lane foreground/text color (hex)",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "helpText",
+          "description": "Flavor text shown as tooltip on hover",
+          "type": "string"
+        },
+        {
+          "name": "order",
+          "description": "Display order within the ranklist",
+          "type": "number",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "item",
+      "description": "A ranked item belonging to a ranklist",
+      "fields": [
+        {
+          "name": "ranklistId",
+          "description": "Parent ranklist",
+          "type": "relationship",
+          "relatedTo": "ranklist",
+          "required": true
+        },
+        {
+          "name": "rankId",
+          "description": "Assigned rank ID; null means unassigned (Library)",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "description": "Item label",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "order",
+          "description": "Display order within its lane",
+          "type": "number",
+          "required": true
+        },
+        {
+          "name": "hasImage",
+          "description": "Whether an image file exists for this item",
+          "type": "boolean"
+        }
+      ]
+    }
+  ],
   "authorizations": [],
   "authorities": [],
-  "notificationTopics": [],
   "apiRoutes": [
-    { "path": "items", "method": "GET", "description": "List all items" },
-    { "path": "items", "method": "POST", "description": "Create a new item" },
-    { "path": "items/[item-id]", "method": "GET", "description": "Get an item by ID" },
-    { "path": "items/[item-id]", "method": "PATCH", "description": "Update an item" },
-    { "path": "items/[item-id]", "method": "DELETE", "description": "Delete an item" }
+    {
+      "path": "ranklists",
+      "method": "GET",
+      "description": "List all ranklists for the current user"
+    },
+    {
+      "path": "ranklists",
+      "method": "POST",
+      "description": "Create a new ranklist"
+    },
+    {
+      "path": "ranklists/[ranklist-id]",
+      "method": "GET",
+      "description": "Get a ranklist by ID"
+    },
+    {
+      "path": "ranklists/[ranklist-id]",
+      "method": "PATCH",
+      "description": "Update a ranklist name or description"
+    },
+    {
+      "path": "ranklists/[ranklist-id]",
+      "method": "DELETE",
+      "description": "Delete a ranklist and all its ranks and items"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/ranks",
+      "method": "GET",
+      "description": "List all ranks for a ranklist"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/ranks",
+      "method": "POST",
+      "description": "Create a new rank in a ranklist"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/ranks/[rank-id]",
+      "method": "PATCH",
+      "description": "Update a rank"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/ranks/[rank-id]",
+      "method": "DELETE",
+      "description": "Delete a rank, moving its items to the Library"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/items",
+      "method": "GET",
+      "description": "List all items for a ranklist"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/items",
+      "method": "POST",
+      "description": "Create a new item with an image upload"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/items/[item-id]",
+      "method": "PATCH",
+      "description": "Update an item (name, rankId, order)"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/items/[item-id]",
+      "method": "DELETE",
+      "description": "Delete an item and its image"
+    },
+    {
+      "path": "ranklists/[ranklist-id]/items/[item-id]/image",
+      "method": "POST",
+      "description": "Upload or replace an item image"
+    },
+    {
+      "path": "images/[ranklist-id]/[item-id]",
+      "method": "GET",
+      "description": "Serve an item image"
+    }
   ],
   "agents": [],
   "applets": [
     {
       "id": "main",
-      "label": "My App",
-      "description": "Main application view",
+      "label": "Ranklist",
+      "description": "Create and manage tier-ranking lists",
       "target": "app",
-      "component": "App"
+      "component": "RanklistApp"
     }
   ]
 }

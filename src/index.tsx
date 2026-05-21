@@ -1,1 +1,1 @@
-export { default as App } from "./apps/App";
+export { default as RanklistApp } from "./apps/RanklistApp";

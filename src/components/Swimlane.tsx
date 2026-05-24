@@ -65,7 +65,7 @@ export default function Swimlane({
     (clientX: number, clientY: number): number => {
       if (!itemsRef.current) return items.length;
       const children = Array.from(
-        itemsRef.current.querySelectorAll("[data-item-card]")
+        itemsRef.current.querySelectorAll("[data-item-card]"),
       ) as HTMLElement[];
       if (children.length === 0) return 0;
 
@@ -81,14 +81,15 @@ export default function Swimlane({
           if (clientX < rect.left + rect.width / 2) return i;
           // Right of center — if this is the last item in its row, insert after it
           const next = children[i + 1];
-          if (!next || next.getBoundingClientRect().top > rect.top) return i + 1;
+          if (!next || next.getBoundingClientRect().top > rect.top)
+            return i + 1;
           // Otherwise continue to the next item in the same row
         }
         // Cursor is below this row, continue
       }
       return children.length;
     },
-    [items.length]
+    [items.length],
   );
 
   const handleDragOver = useCallback(
@@ -100,7 +101,7 @@ export default function Swimlane({
       const idx = computeDropIndex(e.clientX, e.clientY);
       setDropIndex(idx);
     },
-    [computeDropIndex, isDraggingRank]
+    [computeDropIndex, isDraggingRank],
   );
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
@@ -119,7 +120,7 @@ export default function Swimlane({
       setDropIndex(null);
       onDrop(laneId, idx);
     },
-    [laneId, onDrop, computeDropIndex, isDraggingRank]
+    [laneId, onDrop, computeDropIndex, isDraggingRank],
   );
 
   const handleItemClick = useCallback(
@@ -127,7 +128,7 @@ export default function Swimlane({
       e.stopPropagation();
       onSelectItem(selectedItemId === itemId ? null : itemId);
     },
-    [selectedItemId, onSelectItem]
+    [selectedItemId, onSelectItem],
   );
 
   const handleLaneClick = useCallback(() => {
@@ -141,7 +142,7 @@ export default function Swimlane({
       e.dataTransfer.setData("rank-drag", "true");
       onRankDragStart?.();
     },
-    [onRankDragStart]
+    [onRankDragStart],
   );
 
   const labelInner = (
@@ -219,8 +220,8 @@ export default function Swimlane({
           display: "flex",
           flexWrap: "wrap",
           alignContent: "flex-start",
-          gap: 0,
-          padding: "6px 4px",
+          gap: 4,
+          padding: 4,
           minHeight: 60,
           position: "relative",
         }}
@@ -228,7 +229,8 @@ export default function Swimlane({
         {items.map((item, idx) => {
           const isSelected = selectedItemId === item.id;
           const isDragging = draggedItemId === item.id;
-          const showDropBefore = dropIndex === idx && isDragOver && draggedItemId !== item.id;
+          const showDropBefore =
+            dropIndex === idx && isDragOver && draggedItemId !== item.id;
 
           return (
             <React.Fragment key={item.id}>
@@ -244,10 +246,12 @@ export default function Swimlane({
                 onDragEnd={onDragEnd}
                 onClick={(e) => handleItemClick(e, item.id)}
                 style={{
-                  width: 96,
-                  margin: 4,
+                  width: 72,
+                  margin: 0,
                   borderRadius: 6,
-                  border: isSelected ? "2px solid #3b82f6" : "2px solid transparent",
+                  border: isSelected
+                    ? "2px solid #3b82f6"
+                    : "2px solid transparent",
                   background: "#0f172a",
                   cursor: "grab",
                   opacity: isDragging ? 0.4 : 1,
@@ -257,11 +261,19 @@ export default function Swimlane({
                 }}
               >
                 {item.hasImage && (
-                  <div style={{ overflow: "hidden", borderRadius: "4px 4px 0 0" }}>
+                  <div
+                    style={{ overflow: "hidden", borderRadius: "4px 4px 0 0" }}
+                  >
                     <img
                       src={`/api/ranklister/images/${ranklistId}/${item.id}?v=${imageVersion}`}
                       alt={item.name}
-                      style={{ width: "100%", height: 96, objectFit: "contain", display: "block", background: "#0f172a" }}
+                      style={{
+                        width: "100%",
+                        height: 72,
+                        objectFit: "contain",
+                        display: "block",
+                        background: "#0f172a",
+                      }}
                       draggable={false}
                     />
                   </div>
@@ -304,14 +316,20 @@ export default function Swimlane({
                       name="edit"
                       label="Edit item"
                       size="sm"
-                      onClick={() => { onSelectItem(null); onEditItem(item); }}
+                      onClick={() => {
+                        onSelectItem(null);
+                        onEditItem(item);
+                      }}
                     />
                     <ButtonIcon
                       name="trash"
                       label="Delete item"
                       size="sm"
                       subvariant="danger"
-                      onClick={() => { onSelectItem(null); onDeleteItem(item); }}
+                      onClick={() => {
+                        onSelectItem(null);
+                        onDeleteItem(item);
+                      }}
                     />
                   </div>
                 )}
@@ -325,11 +343,14 @@ export default function Swimlane({
 
         {/* Add item button */}
         <div
-          onClick={(e) => { e.stopPropagation(); onAddItem(); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onAddItem();
+          }}
           style={{
-            width: 96,
-            height: 96 + 24,
-            margin: 4,
+            width: 72,
+            height: 72 + 24,
+            margin: 2,
             borderRadius: 6,
             border: "1px dashed #334155",
             display: "flex",
@@ -373,7 +394,12 @@ export default function Swimlane({
           }
         >
           {onEditRank && (
-            <ButtonIcon name="edit" label="Edit rank" size="sm" onClick={onEditRank} />
+            <ButtonIcon
+              name="edit"
+              label="Edit rank"
+              size="sm"
+              onClick={onEditRank}
+            />
           )}
           {onDeleteRank && (
             <ButtonIcon
@@ -395,7 +421,7 @@ function DropIndicator() {
     <div
       style={{
         width: 3,
-        minHeight: 96 + 24 + 8,
+        minHeight: 72 + 24 + 8,
         margin: "4px 0",
         borderRadius: 2,
         background: "#3b82f6",

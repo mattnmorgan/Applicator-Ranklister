@@ -9,13 +9,17 @@ import RanklistHome from "../components/RanklistHome";
 import RanklistView from "../components/RanklistView";
 
 interface Props {
+  path?: string[];
+  appId?: string;
+  navigate?: (url: string) => void;
   context?: UiContext;
 }
 
-export default function RanklistApp({ context: _context }: Props) {
+const APP_BASE = "/app/ranklister:main";
+
+export default function RanklistApp({ path, navigate: navProp, context: _context }: Props) {
   const [ranklists, setRanklists] = useState<Ranklist[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openRanklist, setOpenRanklist] = useState<Ranklist | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
 
   const addToast = useCallback((toast: ToastItem) => {
@@ -48,23 +52,42 @@ export default function RanklistApp({ context: _context }: Props) {
     loadRanklists();
   }, [loadRanklists]);
 
-  const handleCreated = useCallback((ranklist: Ranklist) => {
-    setRanklists((prev) =>
-      [ranklist, ...prev].sort(
-        (a, b) =>
-          new Date(b.updatedAt || b.createdAt).getTime() -
-          new Date(a.updatedAt || a.createdAt).getTime()
-      )
-    );
-    setOpenRanklist(ranklist);
-  }, []);
+  const openRanklistId = path?.[0] === "ranklists" ? (path[1] ?? null) : null;
+  const openRanklist = openRanklistId
+    ? (ranklists.find((r) => r.id === openRanklistId) ?? null)
+    : null;
+
+  const navigateHome = useCallback(() => {
+    navProp?.(APP_BASE);
+  }, [navProp]);
+
+  const navigateToRanklist = useCallback(
+    (id: string) => {
+      navProp?.(`${APP_BASE}/ranklists/${id}`);
+    },
+    [navProp]
+  );
+
+  const handleCreated = useCallback(
+    (ranklist: Ranklist) => {
+      setRanklists((prev) =>
+        [ranklist, ...prev].sort(
+          (a, b) =>
+            new Date(b.updatedAt || b.createdAt).getTime() -
+            new Date(a.updatedAt || a.createdAt).getTime()
+        )
+      );
+      navigateToRanklist(ranklist.id);
+    },
+    [navigateToRanklist]
+  );
 
   const handleDeleted = useCallback(
     (id: string) => {
       setRanklists((prev) => prev.filter((r) => r.id !== id));
-      if (openRanklist?.id === id) setOpenRanklist(null);
+      if (openRanklistId === id) navigateHome();
     },
-    [openRanklist]
+    [openRanklistId, navigateHome]
   );
 
   const handleRanklistUpdated = useCallback((updated: Ranklist) => {
@@ -77,8 +100,10 @@ export default function RanklistApp({ context: _context }: Props) {
             new Date(a.updatedAt || a.createdAt).getTime()
         )
     );
-    setOpenRanklist(updated);
   }, []);
+
+  // True when the URL targets a ranklist (found or still loading)
+  const showingRanklist = openRanklistId && (loading || openRanklist);
 
   return (
     <div
@@ -91,19 +116,23 @@ export default function RanklistApp({ context: _context }: Props) {
         fontSize: 14,
       }}
     >
-      {openRanklist ? (
-        <RanklistView
-          ranklist={openRanklist}
-          onBack={() => setOpenRanklist(null)}
-          onRanklistUpdated={handleRanklistUpdated}
-          onRanklistDeleted={() => { setOpenRanklist(null); handleDeleted(openRanklist.id); }}
-          addToast={addToast}
-        />
+      {showingRanklist ? (
+        openRanklist ? (
+          <RanklistView
+            ranklist={openRanklist}
+            onBack={navigateHome}
+            onRanklistUpdated={handleRanklistUpdated}
+            onRanklistDeleted={() => handleDeleted(openRanklist.id)}
+            addToast={addToast}
+          />
+        ) : (
+          <div style={{ padding: 32, color: "#94a3b8" }}>Loading…</div>
+        )
       ) : (
         <RanklistHome
           ranklists={ranklists}
           loading={loading}
-          onSelect={setOpenRanklist}
+          onSelect={(ranklist) => navigateToRanklist(ranklist.id)}
           onCreated={handleCreated}
           onDeleted={handleDeleted}
           addToast={addToast}

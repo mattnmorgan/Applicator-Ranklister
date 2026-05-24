@@ -99,7 +99,7 @@ export default function RanklistView({
         addToast({ message: "Failed to update ranklist", type: "error" });
       }
     },
-    [baseUrl, onRanklistUpdated, addToast]
+    [baseUrl, onRanklistUpdated, addToast],
   );
 
   const handleDeleteRanklist = useCallback(async () => {
@@ -116,7 +116,12 @@ export default function RanklistView({
   // --- Ranks ---
 
   const handleCreateRank = useCallback(
-    async (data: { name: string; bgColor: string; fgColor: string; helpText: string }) => {
+    async (data: {
+      name: string;
+      bgColor: string;
+      fgColor: string;
+      helpText: string;
+    }) => {
       try {
         const res = await fetch(`${baseUrl}/ranks`, {
           method: "POST",
@@ -132,11 +137,16 @@ export default function RanklistView({
         addToast({ message: "Failed to create rank", type: "error" });
       }
     },
-    [baseUrl, addToast]
+    [baseUrl, addToast],
   );
 
   const handleUpdateRank = useCallback(
-    async (data: { name: string; bgColor: string; fgColor: string; helpText: string }) => {
+    async (data: {
+      name: string;
+      bgColor: string;
+      fgColor: string;
+      helpText: string;
+    }) => {
       if (!editingRank) return;
       try {
         const res = await fetch(`${baseUrl}/ranks/${editingRank.id}`, {
@@ -147,7 +157,9 @@ export default function RanklistView({
         if (!res.ok) throw new Error();
         const updated: Rank = await res.json();
         setRanks((prev) =>
-          prev.map((r) => (r.id === updated.id ? updated : r)).sort((a, b) => a.order - b.order)
+          prev
+            .map((r) => (r.id === updated.id ? updated : r))
+            .sort((a, b) => a.order - b.order),
         );
         setEditingRank(null);
         addToast({ message: "Rank updated", type: "success" });
@@ -155,20 +167,25 @@ export default function RanklistView({
         addToast({ message: "Failed to update rank", type: "error" });
       }
     },
-    [baseUrl, editingRank, addToast]
+    [baseUrl, editingRank, addToast],
   );
 
   const handleDeleteRank = useCallback(async () => {
     if (!deletingRank) return;
     try {
-      const res = await fetch(`${baseUrl}/ranks/${deletingRank.id}`, { method: "DELETE" });
+      const res = await fetch(`${baseUrl}/ranks/${deletingRank.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error();
       setRanks((prev) => prev.filter((r) => r.id !== deletingRank.id));
       const itemsRes = await fetch(`${baseUrl}/items`);
       const itemsData = await itemsRes.json();
       setItems(itemsData.items ?? []);
       setDeletingRank(null);
-      addToast({ message: "Rank deleted — items moved to Library", type: "success" });
+      addToast({
+        message: "Rank deleted — items moved to Library",
+        type: "success",
+      });
     } catch {
       addToast({ message: "Failed to delete rank", type: "error" });
     }
@@ -183,7 +200,10 @@ export default function RanklistView({
         const formData = new FormData();
         formData.append("name", name);
         formData.append("image", file, "image.jpg");
-        const res = await fetch(`${baseUrl}/items`, { method: "POST", body: formData });
+        const res = await fetch(`${baseUrl}/items`, {
+          method: "POST",
+          body: formData,
+        });
         if (!res.ok) throw new Error();
         const item: Item = await res.json();
         if (addToLaneId !== null) {
@@ -210,7 +230,7 @@ export default function RanklistView({
         addToast({ message: "Failed to add item", type: "error" });
       }
     },
-    [baseUrl, items, addToLaneId, addToast]
+    [baseUrl, items, addToLaneId, addToast],
   );
 
   const handleEditItem = useCallback(
@@ -228,19 +248,28 @@ export default function RanklistView({
         if (file) {
           const formData = new FormData();
           formData.append("image", file, "image.jpg");
-          const imgRes = await fetch(`${baseUrl}/items/${editingItem.id}/image`, {
-            method: "POST",
-            body: formData,
-          });
+          const imgRes = await fetch(
+            `${baseUrl}/items/${editingItem.id}/image`,
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
           if (imgRes.ok) {
             const withImg: Item = await imgRes.json();
-            setItems((prev) => prev.map((i) => (i.id === editingItem.id ? withImg : i)));
+            setItems((prev) =>
+              prev.map((i) => (i.id === editingItem.id ? withImg : i)),
+            );
             setImageVersion((v) => v + 1);
           } else {
-            setItems((prev) => prev.map((i) => (i.id === editingItem.id ? patched : i)));
+            setItems((prev) =>
+              prev.map((i) => (i.id === editingItem.id ? patched : i)),
+            );
           }
         } else {
-          setItems((prev) => prev.map((i) => (i.id === editingItem.id ? patched : i)));
+          setItems((prev) =>
+            prev.map((i) => (i.id === editingItem.id ? patched : i)),
+          );
         }
 
         setEditingItem(null);
@@ -249,13 +278,15 @@ export default function RanklistView({
         addToast({ message: "Failed to update item", type: "error" });
       }
     },
-    [baseUrl, editingItem, addToast]
+    [baseUrl, editingItem, addToast],
   );
 
   const handleDeleteItem = useCallback(async () => {
     if (!deletingItem) return;
     try {
-      const res = await fetch(`${baseUrl}/items/${deletingItem.id}`, { method: "DELETE" });
+      const res = await fetch(`${baseUrl}/items/${deletingItem.id}`, {
+        method: "DELETE",
+      });
       if (!res.ok) throw new Error();
       setItems((prev) => prev.filter((i) => i.id !== deletingItem.id));
       setDeletingItem(null);
@@ -310,13 +341,16 @@ export default function RanklistView({
         }
       }
 
-      const clamped = Math.max(0, Math.min(adjustedIndex, targetLaneItems.length));
+      const clamped = Math.max(
+        0,
+        Math.min(adjustedIndex, targetLaneItems.length),
+      );
       const newOrder = computeNewOrder(targetLaneItems, clamped);
 
       setItems((prev) =>
         prev.map((i) =>
-          i.id === itemId ? { ...i, rankId: targetLaneId, order: newOrder } : i
-        )
+          i.id === itemId ? { ...i, rankId: targetLaneId, order: newOrder } : i,
+        ),
       );
 
       try {
@@ -333,13 +367,13 @@ export default function RanklistView({
           prev.map((i) =>
             i.id === itemId
               ? { ...i, rankId: draggedItem.rankId, order: draggedItem.order }
-              : i
-          )
+              : i,
+          ),
         );
         addToast({ message: "Failed to move item", type: "error" });
       }
     },
-    [items, baseUrl, addToast]
+    [items, baseUrl, addToast],
   );
 
   // --- Rank drag and drop ---
@@ -359,7 +393,7 @@ export default function RanklistView({
     (clientY: number): number => {
       if (!ranksContainerRef.current) return ranks.length;
       const rows = Array.from(
-        ranksContainerRef.current.querySelectorAll("[data-rank-row]")
+        ranksContainerRef.current.querySelectorAll("[data-rank-row]"),
       ) as HTMLElement[];
       for (let i = 0; i < rows.length; i++) {
         const rect = rows[i].getBoundingClientRect();
@@ -367,7 +401,7 @@ export default function RanklistView({
       }
       return rows.length;
     },
-    [ranks.length]
+    [ranks.length],
   );
 
   const handleRankContainerDragOver = useCallback(
@@ -377,7 +411,7 @@ export default function RanklistView({
       e.dataTransfer.dropEffect = "move";
       setRankDropIndex(computeRankDropIndex(e.clientY));
     },
-    [computeRankDropIndex]
+    [computeRankDropIndex],
   );
 
   const handleRankContainerDragLeave = useCallback((e: React.DragEvent) => {
@@ -414,7 +448,7 @@ export default function RanklistView({
       setRanks((prev) =>
         prev
           .map((r) => (r.id === rankId ? { ...r, order: newOrder } : r))
-          .sort((a, b) => a.order - b.order)
+          .sort((a, b) => a.order - b.order),
       );
 
       try {
@@ -426,18 +460,20 @@ export default function RanklistView({
         if (!res.ok) throw new Error();
         const updated: Rank = await res.json();
         setRanks((prev) =>
-          prev.map((r) => (r.id === rankId ? updated : r)).sort((a, b) => a.order - b.order)
+          prev
+            .map((r) => (r.id === rankId ? updated : r))
+            .sort((a, b) => a.order - b.order),
         );
       } catch {
         setRanks((prev) =>
           prev
             .map((r) => (r.id === rankId ? draggedRank : r))
-            .sort((a, b) => a.order - b.order)
+            .sort((a, b) => a.order - b.order),
         );
         addToast({ message: "Failed to reorder ranks", type: "error" });
       }
     },
-    [ranks, baseUrl, computeRankDropIndex, addToast]
+    [ranks, baseUrl, computeRankDropIndex, addToast],
   );
 
   // --- Print ---
@@ -460,7 +496,7 @@ export default function RanklistView({
           <div style="display:inline-block;width:80px;margin:4px;vertical-align:top;text-align:center;">
             ${item.hasImage ? `<img src="${origin}/api/ranklister/images/${ranklist.id}/${item.id}" style="width:80px;height:80px;object-fit:contain;border-radius:4px;display:block;" />` : ""}
             <div style="font-size:10px;color:#1e293b;margin-top:2px;word-break:break-word;">${esc(item.name)}</div>
-          </div>`
+          </div>`,
           )
           .join("");
         return `
@@ -473,7 +509,9 @@ export default function RanklistView({
       })
       .join("");
 
-    const libraryItems = items.filter((i) => !i.rankId).sort((a, b) => a.order - b.order);
+    const libraryItems = items
+      .filter((i) => !i.rankId)
+      .sort((a, b) => a.order - b.order);
     const libraryHtml =
       libraryItems.length > 0
         ? `
@@ -488,7 +526,7 @@ export default function RanklistView({
             <div style="display:inline-block;width:80px;margin:4px;vertical-align:top;text-align:center;">
               ${item.hasImage ? `<img src="${origin}/api/ranklister/images/${ranklist.id}/${item.id}" style="width:80px;height:80px;object-fit:contain;border-radius:4px;display:block;" />` : ""}
               <div style="font-size:10px;color:#1e293b;margin-top:2px;word-break:break-word;">${esc(item.name)}</div>
-            </div>`
+            </div>`,
             )
             .join("")}
         </div>
@@ -509,7 +547,7 @@ export default function RanklistView({
               ${esc(r.name)}
             </div>
             <span style="font-size:12px;color:#334155;padding-top:2px;">${esc(r.helpText ?? "")}</span>
-          </div>`
+          </div>`,
           )
           .join("")}
       </div>`
@@ -550,13 +588,23 @@ export default function RanklistView({
   for (const rank of ranks) {
     rankItemsMap.set(
       rank.id,
-      items.filter((i) => i.rankId === rank.id).sort((a, b) => a.order - b.order)
+      items
+        .filter((i) => i.rankId === rank.id)
+        .sort((a, b) => a.order - b.order),
     );
   }
 
   if (loading) {
     return (
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "#94a3b8" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          height: "100%",
+          color: "#94a3b8",
+        }}
+      >
         <Spinner />
       </div>
     );
@@ -565,23 +613,36 @@ export default function RanklistView({
   return (
     <div
       style={{
-        padding: "20px 24px",
+        padding: "8px 12px",
         maxWidth: 1100,
         margin: "0 auto",
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+        fontFamily:
+          '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
       }}
     >
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, marginBottom: 20 }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          marginBottom: 8,
+        }}
+      >
         <div style={{ paddingTop: 2, flexShrink: 0 }}>
-          <ButtonIcon name="chevron-left" label="Back" placement="right" onClick={onBack} />
+          <ButtonIcon
+            name="chevron-left"
+            label="Back"
+            placement="right"
+            onClick={onBack}
+          />
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <h1
               style={{
                 margin: 0,
-                fontSize: 18,
+                fontSize: 14,
                 fontWeight: 500,
                 color: "#f1f5f9",
                 flex: 1,
@@ -591,9 +652,24 @@ export default function RanklistView({
               {ranklist.name}
             </h1>
             <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
-              <ButtonIcon name="plus" label="Add rank" size="sm" onClick={() => setNewRankOpen(true)} />
-              <ButtonIcon name="edit" label="Edit ranklist" size="sm" onClick={() => setEditRanklistOpen(true)} />
-              <ButtonIcon name="print" label="Print ranklist" size="sm" onClick={handlePrint} />
+              <ButtonIcon
+                name="plus"
+                label="Add rank"
+                size="sm"
+                onClick={() => setNewRankOpen(true)}
+              />
+              <ButtonIcon
+                name="edit"
+                label="Edit ranklist"
+                size="sm"
+                onClick={() => setEditRanklistOpen(true)}
+              />
+              <ButtonIcon
+                name="print"
+                label="Print ranklist"
+                size="sm"
+                onClick={handlePrint}
+              />
               <ButtonIcon
                 name="trash"
                 label="Delete ranklist"
@@ -604,7 +680,7 @@ export default function RanklistView({
             </div>
           </div>
           {ranklist.description && (
-            <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: 13 }}>
+            <p style={{ margin: "2px 0 0", color: "#94a3b8", fontSize: 12 }}>
               {ranklist.description}
             </p>
           )}
@@ -617,16 +693,19 @@ export default function RanklistView({
         onDragOver={handleRankContainerDragOver}
         onDragLeave={handleRankContainerDragLeave}
         onDrop={handleRankContainerDrop}
-        style={{ display: "flex", flexDirection: "column", gap: 6 }}
+        style={{ display: "flex", flexDirection: "column", gap: 3 }}
       >
         {ranks.map((rank, idx) => (
           <React.Fragment key={rank.id}>
-            {rankDropIndex === idx && draggingRankId && draggingRankId !== rank.id && (
-              <RankDropIndicator />
-            )}
+            {rankDropIndex === idx &&
+              draggingRankId &&
+              draggingRankId !== rank.id && <RankDropIndicator />}
             <div
               data-rank-row
-              style={{ opacity: draggingRankId === rank.id ? 0.4 : 1, transition: "opacity 0.1s" }}
+              style={{
+                opacity: draggingRankId === rank.id ? 0.4 : 1,
+                transition: "opacity 0.1s",
+              }}
             >
               <Swimlane
                 laneId={rank.id}
@@ -640,9 +719,14 @@ export default function RanklistView({
                 onDragStart={handleDragStart}
                 onDrop={handleDrop}
                 onDragEnd={handleDragEnd}
-                onEditItem={(item) => { setEditingItem(item); }}
+                onEditItem={(item) => {
+                  setEditingItem(item);
+                }}
                 onDeleteItem={(item) => setDeletingItem(item)}
-                onAddItem={() => { setAddToLaneId(rank.id); setItemModalOpen(true); }}
+                onAddItem={() => {
+                  setAddToLaneId(rank.id);
+                  setItemModalOpen(true);
+                }}
                 onEditRank={() => setEditingRank(rank)}
                 onDeleteRank={() => setDeletingRank(rank)}
                 onRankDragStart={() => handleRankDragStart(rank.id)}
@@ -672,9 +756,14 @@ export default function RanklistView({
           onDragStart={handleDragStart}
           onDrop={handleDrop}
           onDragEnd={handleDragEnd}
-          onEditItem={(item) => { setEditingItem(item); }}
+          onEditItem={(item) => {
+            setEditingItem(item);
+          }}
           onDeleteItem={(item) => setDeletingItem(item)}
-          onAddItem={() => { setAddToLaneId(null); setItemModalOpen(true); }}
+          onAddItem={() => {
+            setAddToLaneId(null);
+            setItemModalOpen(true);
+          }}
           isDraggingRank={!!draggingRankId}
           imageVersion={imageVersion}
         />
@@ -753,11 +842,17 @@ export default function RanklistView({
   );
 }
 
-function computeNewOrder(sortedNeighbors: { order: number }[], insertAt: number): number {
+function computeNewOrder(
+  sortedNeighbors: { order: number }[],
+  insertAt: number,
+): number {
   if (sortedNeighbors.length === 0) return 1000;
   if (insertAt === 0) return sortedNeighbors[0].order - 1000;
-  if (insertAt >= sortedNeighbors.length) return sortedNeighbors[sortedNeighbors.length - 1].order + 1000;
-  return (sortedNeighbors[insertAt - 1].order + sortedNeighbors[insertAt].order) / 2;
+  if (insertAt >= sortedNeighbors.length)
+    return sortedNeighbors[sortedNeighbors.length - 1].order + 1000;
+  return (
+    (sortedNeighbors[insertAt - 1].order + sortedNeighbors[insertAt].order) / 2
+  );
 }
 
 function esc(str: string): string {

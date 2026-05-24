@@ -1,15 +1,15 @@
 "use client";
 
-import { UiContext } from "@applicator/sdk/context";
+import type { UiContext } from "@applicator/sdk/context";
+import RanklistApp from "./RanklistApp";
 
 interface Props {
+  path?: string[];
+  appId?: string;
+  navigate?: (url: string) => void;
   context?: UiContext;
 }
 
-export default function App({ context }: Props) {
-  return (
-    <div>
-      <h1>My App</h1>
-    </div>
-  );
+export default function App({ path, navigate, context }: Props) {
+  return <RanklistApp path={path} navigate={navigate} context={context} />;
 }
